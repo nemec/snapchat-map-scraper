@@ -117,3 +117,4 @@ exp/
 media/
 .env
 out.txt
+*.db

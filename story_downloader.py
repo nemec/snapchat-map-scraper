@@ -41,6 +41,8 @@ def add_location(db_file: pathlib.Path, lat: float, lon: float, zoom: float, lab
         finally:
             conn.commit()
             cur.close()
+    geo = f'{lat}, {lon}'
+    print(f'Added {label or geo} to database')
 
 
 def randomize_location(latitude, longitude, radius):
@@ -236,17 +238,30 @@ def scrape_locations(db_file: pathlib.Path, randomize, repeat, sleep, label):
         pass
 
 
+def _open_default(filepath: pathlib.Path):
+    import subprocess, os, platform
+    if platform.system() == 'Darwin':       # macOS
+        subprocess.call(('open', str(filepath)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif platform.system() == 'Windows':    # Windows
+        os.startfile(str(filepath))
+    else:                                   # linux variants
+        subprocess.call(('xdg-open', str(filepath)), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def review(db_file: pathlib.Path, exe: str, label=None):
     base_folder = pathlib.Path('.')
     media = []
     with sqlite3.connect(str(db_file)) as conn:
         cur = conn.cursor()
         if label is None:
-            media = list(cur.execute('SELECT id, media_path FROM media m JOIN locations l WHERE reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC'))
+            media = list(cur.execute('SELECT m.id, media_path FROM media m JOIN locations l WHERE reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC'))
         else:
-            media = list(cur.execute('SELECT id, media_path FROM media m JOIN locations l WHERE l.label = ? AND reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC', (label,)))
+            media = list(cur.execute('SELECT m.id, media_path FROM media m JOIN locations l WHERE l.label = ? AND reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC', (label,)))
     for idx, (idnum, v) in enumerate(media):
-        subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if exe is not None:
+            subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            _open_default(base_folder / v)
         # Flush all accidental double Return key presses
         while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
             os.read(sys.stdin.fileno(), 4096)
@@ -269,11 +284,12 @@ def export(db_file: pathlib.Path, export_dir: pathlib.Path):
         date = datetime.datetime.fromtimestamp(int(timestamp)/1000)
         date_str = date.strftime('%Y-%m-%d %H:%M:%S')
         media_file = base_folder / media_path
-        fname = f'{date_str}-{classification}.mp4'
+        fname = f'{date_str}-{classification[:200]}.mp4'
         dest = export_dir / fname
         if dest.exists():
             continue
         shutil.copy(str(media_file), str(dest))
+    print(f'{len(files)} video(s) exported')
 
 
 if __name__ == '__main__':
@@ -309,7 +325,7 @@ if __name__ == '__main__':
     reviwe_p = subp.add_parser('review', help='Review any unreviewed videos')
     reviwe_p.add_argument('--database', type=pathlib.Path, default=pathlib.Path('data.db'),
                         nargs='?', help='Database file')
-    reviwe_p.add_argument('--player', type=pathlib.Path, default=pathlib.Path('/usr/bin/totem'),
+    reviwe_p.add_argument('--player', type=pathlib.Path, default=None,
                         help='Media player executable path. Must take video as only argument')
     reviwe_p.add_argument('label', type=str, nargs='?',
         help='Optionally review only a specifically labeled location. By default reviews all locations.')
