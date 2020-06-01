@@ -282,7 +282,7 @@ def export(db_file: pathlib.Path, export_dir: pathlib.Path):
         files = list(cur.execute('SELECT media_path, timestamp, classification FROM media WHERE reviewed=1 AND classification IS NOT NULL'))
     for (media_path, timestamp, classification) in files:
         date = datetime.datetime.fromtimestamp(int(timestamp)/1000)
-        date_str = date.strftime('%Y-%m-%d %H:%M:%S')
+        date_str = date.strftime('%Y-%m-%d-%H:%M:%S')
         media_file = base_folder / media_path
         fname = f'{date_str}-{classification[:200]}.mp4'
         dest = export_dir / fname

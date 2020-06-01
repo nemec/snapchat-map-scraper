@@ -107,4 +107,8 @@ for further review/editing/publishing.
 ```bash
 python3 story_downloader.py export --database snap.db export/
 # 3 video(s) exported
+ls export/
+# 2020-05-29-04:26:30-fire.mp4
+# 2020-05-30-12:26:57-crowd.mp4
+# '2020-05-30-21:16:22-line of people.mp4'
 ```
