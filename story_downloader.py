@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 
-import time
-import requests
-import json
-import sys
-import sqlite3
 import argparse
-import pathlib
-import subprocess
+import datetime
+import json
 import os
+import pathlib
+import platform
 import select
 import shutil
-import datetime
+import sqlite3
+import subprocess
+import sys
+import time
+
+import requests
 
 
 def create_database(db_file: pathlib.Path):
@@ -82,11 +84,21 @@ def get_epoch():
 def download_file(file: pathlib.Path, url: str):
     if file.exists():
         return
-    with requests.get(url, stream=True) as resp:
-        resp.raise_for_status()
-        with open(str(file), 'wb') as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
+    tries = 3
+    while tries > 0:
+        try:
+            with requests.get(url, stream=True) as resp:
+                resp.raise_for_status()
+                with open(str(file), 'wb') as f:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            break
+        except (requests.HTTPError, requests.exceptions.ConnectionError):
+            if tries == 0:
+                raise
+            time.sleep(3)
+            tries -= 1
+        
 
 
 def download_media(idnum, preview_url, media_url, overlay_url):
@@ -147,8 +159,21 @@ def scrape_location(db_file: pathlib.Path, location_id, latitude, longitude, zoo
 
     url = 'https://ms.sc-jpl.com/web/getPlaylist'
 
-    resp = requests.post(url, json=data, headers=headers)
-    resp.raise_for_status()
+    tries = 3
+    resp = None
+    while tries > 0:
+        try:
+            resp = requests.post(url, json=data, headers=headers)
+            resp.raise_for_status()
+            break
+        except (requests.HTTPError, requests.exceptions.ConnectionError):
+            if tries == 0:
+                raise
+            time.sleep(3)
+            tries -= 1
+    if resp is None:
+        return 0
+
     j = resp.json()
     new_records = 0
     for vid in j['manifest']['elements']:
@@ -182,11 +207,11 @@ def scrape_location(db_file: pathlib.Path, location_id, latitude, longitude, zoo
             media = info.get('publicMediaInfo')
             if media:
                 preview_url = media['publicImageMediaInfo']['mediaUrl']
-            #else:
-            #    media = info.get
-            #    print('Unable to get video info')
-            #    print(json.dumps(vid))
-            #    continue
+            else:
+               media = info.get
+               print('Unable to get video info')
+               print(json.dumps(vid))
+               continue
             
         try:
             (preview_path, media_path, overlay_path) = download_media(idnum, preview_url, media_url, overlay_url)
@@ -262,9 +287,10 @@ def review(db_file: pathlib.Path, exe: str, label=None):
             subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             _open_default(base_folder / v)
-        # Flush all accidental double Return key presses
-        while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
-            os.read(sys.stdin.fileno(), 4096)
+        if platform.system() in ('Linux', 'Darwin'):
+            # Flush all accidental double Return key presses
+            while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
+                os.read(sys.stdin.fileno(), 4096)
         classification = input('Classify or leave blank:')
         if not classification:
             classification = None
