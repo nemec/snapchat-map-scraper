@@ -288,7 +288,7 @@ def review(db_file: pathlib.Path, exe: str, label=None):
             subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             _open_default(base_folder / v)
-        if platform.system() in ('Linux', 'Darwin'):
+        if platform.system() != 'Windows':
             # Flush all accidental double Return key presses
             while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
                 os.read(sys.stdin.fileno(), 4096)
