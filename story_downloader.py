@@ -12,6 +12,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import re
 
 import requests
 
@@ -299,14 +300,20 @@ def review(db_file: pathlib.Path, exe: str, label=None):
         print(f'{len(media) - idx - 1} remaining')
 
 
-def export(db_file: pathlib.Path, export_dir: pathlib.Path):
+def export(db_file: pathlib.Path, export_dir: pathlib.Path, include_labels: bool):
     base_folder = pathlib.Path('.')
     if not export_dir.exists():
         export_dir.mkdir(parents=True)
     with sqlite3.connect(str(db_file)) as conn:
         cur = conn.cursor()
-        files = list(cur.execute('SELECT media_path, timestamp, classification FROM media WHERE reviewed=1 AND classification IS NOT NULL'))
-    for (media_path, timestamp, classification) in files:
+        files = list(cur.execute('''
+            SELECT m.media_path, m.timestamp, m.classification, l.label
+            FROM media m
+            LEFT JOIN locations l
+            ON m.location_id = l.id
+            WHERE m.reviewed=1 AND m.classification IS NOT NULL
+        '''))
+    for (media_path, timestamp, classification, label) in files:
         date = datetime.datetime.fromtimestamp(int(timestamp)/1000)
         if platform.system() == 'Windows':
             date_str = date.strftime('%Y-%m-%d--%H-%M-%S')
@@ -314,7 +321,13 @@ def export(db_file: pathlib.Path, export_dir: pathlib.Path):
             date_str = date.strftime('%Y-%m-%d-%H:%M:%S')
         media_file = base_folder / media_path
         fname = f'{date_str}-{classification[:200]}.mp4'
-        dest = export_dir / fname
+
+        export_subdir = export_dir
+        if include_labels and label is not None and len(label) > 0:
+            export_subdir = export_dir / re.sub("[^A-Za-z ]", "", label[:200]) # filename length limit
+        if not export_subdir.exists():
+            export_subdir.mkdir(parents=True)
+        dest = export_subdir / fname
         if dest.exists():
             continue
         shutil.copy(str(media_file), str(dest))
@@ -362,6 +375,8 @@ if __name__ == '__main__':
     reviwe_p = subp.add_parser('export', help='Export classified videos to a folder')
     reviwe_p.add_argument('--database', type=pathlib.Path, default=pathlib.Path('data.db'),
                         nargs='?', help='Database file')
+    reviwe_p.add_argument('--label', action='store_true',
+                        help='Put videos in a subfolder based on location, if available.')
     reviwe_p.add_argument('export_dir', type=pathlib.Path,
         help='Directory to export files.')
 
@@ -384,4 +399,4 @@ if __name__ == '__main__':
     elif args.subparser_name == 'review':
         review(args.database, args.player, args.label)
     elif args.subparser_name == 'export':
-        export(args.database, args.export_dir)
+        export(args.database, args.export_dir, args.label)
