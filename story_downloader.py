@@ -280,24 +280,25 @@ def review(db_file: pathlib.Path, exe: str, label=None):
     with sqlite3.connect(str(db_file)) as conn:
         cur = conn.cursor()
         if label is None:
-            media = list(cur.execute('SELECT m.id, media_path FROM media m JOIN locations l WHERE reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC'))
+            media = list(cur.execute('SELECT DISTINCT m.id, media_path FROM media m JOIN locations l WHERE reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC'))
         else:
-            media = list(cur.execute('SELECT m.id, media_path FROM media m JOIN locations l WHERE l.label = ? AND reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC', (label,)))
+            media = list(cur.execute('SELECT DISTINCT m.id, media_path FROM media m JOIN locations l WHERE l.label = ? AND reviewed=0 AND media_path IS NOT NULL ORDER BY timestamp ASC', (label,)))
     for idx, (idnum, v) in enumerate(media):
-        if exe is not None:
-            subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            _open_default(base_folder / v)
-        if platform.system() in ('Linux', 'Darwin'):
-            # Flush all accidental double Return key presses
-            while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
-                os.read(sys.stdin.fileno(), 4096)
-        classification = input('Classify or leave blank:')
-        if not classification:
-            classification = None
-        cur.execute('UPDATE media SET reviewed=1, classification=? WHERE id=?', (classification, idnum))
-        conn.commit()
-        print(f'{len(media) - idx - 1} remaining')
+        print(f'{idx+1}/{len(media)}: {v}')
+    #     if exe is not None:
+    #         subprocess.call([exe, base_folder / v], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    #     else:
+    #         _open_default(base_folder / v)
+    #     if platform.system() in ('Linux', 'Darwin'):
+    #         # Flush all accidental double Return key presses
+    #         while select.select([sys.stdin.fileno()], [], [], 0.0)[0]:
+    #             os.read(sys.stdin.fileno(), 4096)
+    #     classification = input('Classify or leave blank:')
+    #     if not classification:
+    #         classification = None
+    #     cur.execute('UPDATE media SET reviewed=1, classification=? WHERE id=?', (classification, idnum))
+    #     conn.commit()
+    #     print(f'{len(media) - idx - 1} remaining')
 
 
 def export(db_file: pathlib.Path, export_dir: pathlib.Path, include_labels: bool):
