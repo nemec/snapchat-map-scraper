@@ -196,14 +196,13 @@ def scrape_location(db_file: pathlib.Path, location_id, latitude, longitude, zoo
         media_url = None
         overlay_url = None
         if media:
+            prefix = media.get('prefixUrl', '')
             if media.get('previewUrl'):
-                preview_url = media['prefixUrl'] + media['previewUrl']
+                preview_url = prefix + media['previewUrl']
             if media.get('mediaUrl'):
-                media_url = media['prefixUrl'] + media['mediaUrl']
+                media_url = prefix + media['mediaUrl']
             if media.get('overlayUrl'):
-                overlay_url = media['prefixUrl'] + media['overlayUrl']
-                if not overlay_url.endswith('png'):
-                    print(f'Overlay url: {overlay_url}')
+                overlay_url = prefix + media['overlayUrl']
         else:
             media = info.get('publicMediaInfo')
             if media:
