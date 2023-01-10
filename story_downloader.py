@@ -183,12 +183,17 @@ def scrape_location(db_file: pathlib.Path, location_id, latitude, longitude, zoo
         timestamp = vid.get('timestamp')
         
         info = vid['snapInfo']
-        titles = info['title']['strings']
-        title = [t['text'] for t in titles if t['locale'] == 'en']
-        if title:
-            title = title[0]
+        titles = info.get('title', {}).get('strings')
+        if titles is not None:
+            title = [t.get('text') for t in titles if t.get('locale') == 'en']
+            if len(title) > 0 and title[0] is not None:
+                title = title[0]
+            elif info.get('title', {}).get('fallback') is not None:
+                title = info['title']['fallback']
+            else:
+                title = idnum
         else:
-            title = info['title'].get('fallback')
+            title = idnum
         overlay_text = info.get('overlayText')
 
         media = info.get('streamingMediaInfo')
